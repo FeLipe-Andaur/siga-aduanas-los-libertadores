@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIGA Los Libertadores - v0.1.0</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="login" class="login">
+    <section class="login-card">
+      <img src="assets/logo-aduana-chile.png" alt="Servicio Nacional de Aduanas" class="logo" />
+      <h1>Servicio Nacional de Aduanas</h1>
+      <h2>Los Libertadores</h2>
+      <p>SIGA · Sistema Integrado de Gestión Aduanera</p>
+
+      <form id="loginForm">
+        <label>Correo</label>
+        <input id="email" type="email" value="admin@siga.cl" required />
+        <label>Contraseña</label>
+        <input id="password" type="password" value="1234" required />
+        <button type="submit">Ingresar</button>
+        <span id="loginMsg"></span>
+      </form>
+      <small>Demo: admin@siga.cl / 1234 · funcionario@siga.cl / 1234 · pasajero@siga.cl / 1234</small>
+    </section>
+  </main>
+
+  <section id="app" class="app hidden">
+    <aside>
+      <img src="assets/logo-aduana-chile.png" alt="Aduanas Chile" class="side-logo" />
+      <button data-view="dashboard">Panel principal</button>
+      <button data-view="consulta">Consulta de trámite</button>
+      <button data-view="pretramite">Pre-trámite</button>
+      <button data-view="reportes">Reportes</button>
+      <button id="logout">Cerrar sesión</button>
+    </aside>
+
+    <main class="content">
+      <header>
+        <div>
+          <h1 id="viewTitle">Panel principal</h1>
+          <p id="userInfo"></p>
+        </div>
+      </header>
+      <div id="view"></div>
+    </main>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
