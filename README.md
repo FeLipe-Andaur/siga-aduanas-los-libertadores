@@ -1,6 +1,6 @@
-# SIGA Aduanas - Prototipo v0.2.0
+# SIGA Aduanas - Prototipo v1.0.0
 
-Versión intermedia con módulos operativos principales implementados.
+Versión final fidedigna con flujos funcionales y validaciones finales aplicadas.
 
 # SIGA Aduanas Chile – Prototipo funcional sin registros personales
 
@@ -106,3 +106,31 @@ Se agregaron componentes que estaban respaldados por la documentación del proye
 ## Ajuste reciente
 
 - Se retiraron del prototipo las pantallas y textos internos que no corresponden al usuario final del sistema.
+
+
+## Ajuste de checklist según rol
+
+- Para el pasajero, el módulo se muestra como **Mis documentos requeridos**.
+- El pasajero solo puede ver sus documentos, estados y observaciones.
+- El pasajero no ve identificadores internos de control ni botones de aprobación/observación.
+- Para funcionario/administrador, se mantiene como **Checklist documental** con acciones operativas.
+
+
+
+
+## Ajuste funcional final
+
+Esta versión aplica los flujos operativos de autenticación, menores, SAG, mascotas, vehículos y PDI como comportamiento funcional dentro del prototipo. No se agregan pantallas de documentación ni listas de pruebas dentro de la interfaz.
+
+Ajustes principales:
+
+- cuenta inactiva bloqueada estrictamente desde login;
+- sesión con token simulado y eliminación al cerrar sesión;
+- menores sin documento o sin autorización requerida quedan bloqueados;
+- declaración SAG incompleta marca campos obligatorios en rojo;
+- producto prohibido genera alerta visual y sonora;
+- formulario vehicular incompleto muestra alertas rojas sobre los campos;
+- salida temporal genera documento en estado pendiente;
+- permisos vehiculares se descargan como archivo PDF;
+- PDI rechaza documento vencido;
+- PDI bloquea salida ante alerta migratoria.

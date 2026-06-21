@@ -3,10 +3,11 @@ const USERS = [
   { email: "funcionario@siga.cl", password: "1234", name: "Funcionario Aduanas", role: "Funcionario Aduanas" },
   { email: "pasajero@siga.cl", password: "1234", name: "Pasajero Demo", role: "Pasajero" },
   { email: "sag@siga.cl", password: "1234", name: "Inspector SAG", role: "Inspector SAG" },
-  { email: "pdi@siga.cl", password: "1234", name: "Control PDI", role: "Control PDI" }
+  { email: "pdi@siga.cl", password: "1234", name: "Control PDI", role: "Control PDI" },
+  { email: "deshabilitado@siga.cl", password: "1234", name: "Usuario Deshabilitado", role: "Pasajero" }
 ];
 
-const STORAGE_KEY = "siga_aduanas_prototipo_operacional_v3";
+const STORAGE_KEY = "siga_aduanas_fidedigno_v1";
 const SESSION_KEY = "siga_aduanas_session_v1";
 
 const seed = {
@@ -16,15 +17,15 @@ const seed = {
     { id: "TR-2026-003", pasajero: "Carlos Pérez", documento: "AR-88991", nacionalidad: "Argentina", tipo: "Ingreso", destino: "Chile", patente: "JKLT-31", menor: "No", doc: "Aprobado", sag: "Observado", pdi: "Pendiente", estado: "Observado", obs: "Declaración SAG observada por alimentos declarados.", creadoPor: "funcionario@siga.cl", fecha: "2026-06-10" }
   ],
   menores: [
-    { id: "MEN-001", tramiteId: "TR-2026-002", nombre: "Menor Demo", documento: "33.333.333-3", autorizacion: "Autorización notarial", estado: "Aprobado", observacion: "Autorización validada para el trámite de ejemplo." }
+    { id: "MEN-001", tramiteId: "TR-2026-002", nombre: "Menor Demo", documento: "33.333.333-3", tipoViaje: "Ambos padres presentes", autorizacion: "Autorización notarial", acompanante: "Ambos padres", respaldo: "Certificado y cédulas revisadas", estado: "Aprobado", observacion: "Autorización validada para el trámite de ejemplo." }
   ],
   vehiculos: [
-    { id: "VEH-001", tramiteId: "TR-2026-001", patente: "ABCD-12", titular: "Pasajero Demo", movimiento: "Salida temporal", estado: "Registrado" }
+    { id: "VEH-001", tramiteId: "TR-2026-001", patente: "ABCD-12", chasis: "CHASIS-DEMO-001", conductor: "Pasajero Demo", titular: "Pasajero Demo", tipoVehiculo: "Particular", movimiento: "Salida temporal", documentoArgentino: "No aplica", estadoDocumento: "Vigente", permiso: "Permiso turismo 180 días", estado: "Registrado" }
   ],
   sagDecl: [
     { id: "SAG-001", tramiteId: "TR-2026-003", alimentos: "Sí", mascotas: "No", detalle: "Alimentos declarados para inspección.", estado: "Observado" }
   ],
-  usuarios: USERS.map((u, i) => ({ id: i + 1, nombre: u.name, correo: u.email, rol: u.role, estado: "Activo" })),
+  usuarios: USERS.map((u, i) => ({ id: i + 1, nombre: u.name, correo: u.email, rol: u.role, estado: u.email === "deshabilitado@siga.cl" ? "Inactivo" : "Activo" })),
   integraciones: [
     { organismo: "SAG", estado: "Pendiente", ultima: "Sin sincronizar" },
     { organismo: "PDI", estado: "Pendiente", ultima: "Sin sincronizar" },
@@ -79,8 +80,16 @@ function loadState() {
 }
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function loadSession() { try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null"); } catch { return null; } }
-function saveSession() { sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); }
-function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
+function saveSession() {
+  const token = "JWT-SIGA-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  currentUser.sessionToken = token;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+  sessionStorage.setItem("siga_session_token", token);
+}
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem("siga_session_token");
+}
 function toast(msg) {
   const el = $("#toast");
   el.textContent = msg;
@@ -109,12 +118,118 @@ function badge(value) {
   let cls = "info";
   if (t.includes("aprob") || t.includes("activo") || t.includes("registrado") || t.includes("sincronizado")) cls = "ok";
   else if (t.includes("pendiente") || t.includes("revisión")) cls = "warn";
-  else if (t.includes("observ") || t.includes("fall") || t.includes("inactivo") || t.includes("rechaz")) cls = "bad";
+  else if (t.includes("observ") || t.includes("fall") || t.includes("inactivo") || t.includes("rechaz") || t.includes("bloque") || t.includes("reten") || t.includes("caduc")) cls = "bad";
   return `<span class="badge ${cls}">${esc(value)}</span>`;
 }
 function table(headers, rows) {
   return `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${headers.length}">Sin registros.</td></tr>`}</tbody></table></div>`;
 }
+
+function setFieldError(form, name, message) {
+  const field = form.querySelector(`[name="${name}"]`);
+  if (!field) return;
+  field.classList.add("input-error");
+  let box = field.parentElement.querySelector(".field-error");
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "field-error";
+    field.parentElement.appendChild(box);
+  }
+  box.textContent = message;
+}
+function clearFieldErrors(form) {
+  form.querySelectorAll(".input-error").forEach(el => el.classList.remove("input-error"));
+  form.querySelectorAll(".field-error").forEach(el => el.remove());
+  form.querySelectorAll(".form-alert").forEach(el => el.remove());
+}
+function validateRequiredFields(form, names) {
+  clearFieldErrors(form);
+  let ok = true;
+  names.forEach(name => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field || String(field.value || "").trim()) return;
+    ok = false;
+    setFieldError(form, name, "Campo obligatorio.");
+  });
+  if (!ok) {
+    const alert = document.createElement("div");
+    alert.className = "form-alert bad-alert";
+    alert.textContent = "Complete los campos obligatorios marcados en rojo.";
+    form.prepend(alert);
+  }
+  return ok;
+}
+function showProcessAlert(form, message, critical = false) {
+  if (!form) return;
+  form.querySelectorAll(".form-alert").forEach(el => el.remove());
+  const alert = document.createElement("div");
+  alert.className = `form-alert ${critical ? "critical-alert" : "bad-alert"}`;
+  alert.textContent = message;
+  form.prepend(alert);
+}
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.04;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    }, 450);
+  } catch (e) {
+    // El navegador puede bloquear audio automático; la alerta visual sigue activa.
+  }
+}
+function escapePdfText(text) {
+  return String(text ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[()\\]/g, "\\$&");
+}
+function downloadSimplePdf(filename, title, lines) {
+  const safeLines = [title, ...lines].map(escapePdfText);
+  let content = "BT /F1 16 Tf 50 790 Td (" + safeLines[0] + ") Tj ET\n";
+  let y = 755;
+  safeLines.slice(1).forEach(line => {
+    content += "BT /F1 11 Tf 50 " + y + " Td (" + line + ") Tj ET\n";
+    y -= 18;
+  });
+
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Length " + content.length + " >>\\nstream\\n" + content + "endstream"
+  ];
+
+  let pdf = "%PDF-1.4\\n";
+  const offsets = [0];
+  objects.forEach((obj, idx) => {
+    offsets.push(pdf.length);
+    pdf += (idx + 1) + " 0 obj\\n" + obj + "\\nendobj\\n";
+  });
+  const xref = pdf.length;
+  pdf += "xref\\n0 " + (objects.length + 1) + "\\n0000000000 65535 f \\n";
+  offsets.slice(1).forEach(off => {
+    pdf += String(off).padStart(10, "0") + " 00000 n \\n";
+  });
+  pdf += "trailer\\n<< /Size " + (objects.length + 1) + " /Root 1 0 R >>\\nstartxref\\n" + xref + "\\n%%EOF";
+
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function exportExcel(filename, arr) {
   if (!arr.length) return toast("No hay datos para exportar.");
   const headers = Object.keys(arr[0]);
@@ -146,6 +261,12 @@ function exportCsv(filename, arr) {
 }
 function nextId(prefix, array) { return `${prefix}-${String(array.length + 1).padStart(3, "0")}`; }
 function canAccess(view) { return view.roles.includes(currentUser.role); }
+function viewLabel(view) {
+  if (view.id === "checklist" && currentUser && currentUser.role === "Pasajero") {
+    return "Mis documentos requeridos";
+  }
+  return view.label;
+}
 function visibleTramites() {
   if (currentUser.role === "Pasajero") {
     return state.tramites.filter(t => t.creadoPor === currentUser.email);
@@ -190,6 +311,53 @@ function estadoProductoSag(condicion, estadoSolicitado) {
 }
 function estadoConciliacion(ladoChile, ladoArgentina) {
   return ladoChile === ladoArgentina ? "Conciliado" : "Diferencia detectada";
+}
+function evaluarMenor(tipoViaje, autorizacion, respaldo, documento) {
+  const tieneRespaldo = String(respaldo || "").trim().length > 0;
+  if (!documento || !String(documento).trim()) {
+    return { estado: "Bloqueado", observacion: "Documento de identidad del menor obligatorio. Flujo migratorio detenido." };
+  }
+  if (tipoViaje === "Ambos padres presentes") {
+    return { estado: "Aprobado", observacion: "Filiación validada con ambos padres presentes." };
+  }
+  if (tipoViaje === "Viaja con un padre") {
+    if (autorizacion === "Autorización notarial" && tieneRespaldo) {
+      return { estado: "Aprobado", observacion: "Autorización notarial validada para viaje con un padre." };
+    }
+    return { estado: "Bloqueado", observacion: "Salida bloqueada: requiere autorización notarial vigente del padre/madre ausente." };
+  }
+  if (tipoViaje === "Viaja solo o con tercero") {
+    if ((autorizacion === "Autorización notarial" || autorizacion === "Autorización judicial") && tieneRespaldo) {
+      return { estado: "Aprobado", observacion: "Autorización validada para viaje con tercero o sin padres." };
+    }
+    return { estado: "Bloqueado", observacion: "Salida bloqueada: requiere autorización de ambos padres o resolución judicial." };
+  }
+  if (autorizacion === "Autorización judicial" && tieneRespaldo) {
+    return { estado: "Aprobado", observacion: "Trámite aprobado y vinculado a autorización judicial." };
+  }
+  return { estado: "Bloqueado", observacion: "Salida bloqueada por autorización insuficiente del menor." };
+}
+function evaluarMascota(responsable, tutorLegal, autorizacionTutor, certificado, vacuna, estadoSolicitado) {
+  if (responsable === "Menor de edad" && (!tutorLegal || !autorizacionTutor)) {
+    return { estado: "Bloqueado", observacion: "Un menor no puede declarar mascota sin tutor legal responsable." };
+  }
+  if (responsable === "Representante legal" && (!tutorLegal || !autorizacionTutor)) {
+    return { estado: "Bloqueado", observacion: "El representante debe registrar tutoría o autorización de responsabilidad." };
+  }
+  const invalidos = ["Pendiente", "Vencido", "Vencida", "No presenta"];
+  if (invalidos.includes(certificado) || invalidos.includes(vacuna)) {
+    return { estado: "Observado", observacion: "Requiere revisión SAG por certificado o vacuna pendiente/vencida/no presentada." };
+  }
+  return { estado: estadoSolicitado, observacion: "Mascota registrada y asociada al responsable legal." };
+}
+function evaluarVehiculo(tipoVehiculo, estadoDocumento, movimiento) {
+  if (estadoDocumento === "Inválido") return { estado: "Rechazado", permiso: "Ingreso rechazado", observacion: "Documento inválido o inexistente. Ingreso bloqueado." };
+  if (estadoDocumento === "Vencido") return { estado: "Observado", permiso: "Flujo pausado", observacion: "Documento vencido; flujo pausado para revisión." };
+  if (movimiento === "Formulario de salida temporal") return { estado: "Pendiente", permiso: "Formulario de salida temporal generado", observacion: "Documento generado en estado pendiente." };
+  if (tipoVehiculo === "Diplomático") return { estado: "Registrado", permiso: "Permiso diplomático 90 días", observacion: "Permiso especial emitido por condición diplomática/oficial." };
+  if (tipoVehiculo === "Particular") return { estado: "Registrado", permiso: "Permiso turismo 180 días", observacion: "Permiso estándar emitido para vehículo particular." };
+  if (tipoVehiculo === "Documento argentino") return { estado: "Registrado", permiso: "Ingreso autorizado en tránsito", observacion: "Documento argentino vigente validado para ingreso." };
+  return { estado: "Registrado", permiso: "Documento generado", observacion: "Vehículo registrado correctamente." };
 }
 function hasActiveDuplicateDocument(documento) {
   const normalized = String(documento || "").trim().toLowerCase();
@@ -253,7 +421,7 @@ function init() {
 }
 
 function renderNav() {
-  $("#sideNav").innerHTML = views.filter(canAccess).map(v => `<button type="button" class="nav-btn ${v.id === currentView ? 'active' : ''}" data-view="${v.id}">${v.label}</button>`).join("");
+  $("#sideNav").innerHTML = views.filter(canAccess).map(v => `<button type="button" class="nav-btn ${v.id === currentView ? 'active' : ''}" data-view="${v.id}">${viewLabel(v)}</button>`).join("");
   $$(".nav-btn").forEach(btn => btn.onclick = () => {
     $("#sidebar").classList.remove("open");
     go(btn.dataset.view);
@@ -262,7 +430,7 @@ function renderNav() {
 function go(id) {
   const view = views.find(v => v.id === id);
   currentView = (view && canAccess(view)) ? id : "dashboard";
-  $("#viewTitle").textContent = views.find(v => v.id === currentView).label;
+  $("#viewTitle").textContent = viewLabel(views.find(v => v.id === currentView));
   renderNav();
   ({ dashboard, consulta, checklist, pretramite, menores, documentacion, vehiculos, sag, productosSag, mascotas, pdi, integracion, conciliacion, flujo, reportes, usuarios, bitacora })[currentView]();
 }
@@ -330,7 +498,29 @@ function consulta() {
 
 
 function checklist() {
-  const rows = visibleChecklist().map(c => `
+  const dataChecklist = visibleChecklist();
+
+  if (currentUser.role === "Pasajero") {
+    const rows = dataChecklist.map(c => `
+      <tr>
+        <td>${esc(c.categoria)}</td>
+        <td>${esc(c.documento)}</td>
+        <td>${badge(c.estado)}</td>
+        <td>${esc(c.observacion || "Sin observación")}</td>
+      </tr>
+    `);
+
+    $("#viewContainer").innerHTML = `
+      <section class="table-card">
+        <h3>Mis documentos requeridos</h3>
+        <p>Revisa los documentos asociados a tu trámite antes de llegar a ventanilla.</p>
+        ${table(["Categoría","Documento requerido","Estado","Observación"], rows)}
+      </section>
+    `;
+    return;
+  }
+
+  const rows = dataChecklist.map(c => `
     <tr>
       <td><strong>${c.id}</strong></td>
       <td>${esc(c.tramiteId)}</td>
@@ -338,29 +528,59 @@ function checklist() {
       <td>${esc(c.documento)}</td>
       <td>${badge(c.estado)}</td>
       <td>${esc(c.observacion || "Sin observación")}</td>
-      ${currentUser.role !== "Pasajero" ? `<td class="actions"><button type="button" class="btn secondary" data-check-ok="${c.id}">Marcar OK</button><button type="button" class="btn outline" data-check-obs="${c.id}">Observar</button></td>` : ""}
+      <td class="actions">
+        <button type="button" class="btn secondary" data-check-ok="${c.id}">Marcar OK</button>
+        <button type="button" class="btn outline" data-check-obs="${c.id}">Observar</button>
+      </td>
     </tr>
   `);
-  const headers = ["ID","Trámite","Categoría","Documento requerido","Estado","Observación"];
-  if (currentUser.role !== "Pasajero") headers.push("Acción");
 
   $("#viewContainer").innerHTML = `
     <div class="grid grid-2">
       <section class="form-card">
         <h3>Checklist documental</h3>
-        <p>Valida documentos obligatorios antes de llegar a ventanilla.</p>
+        <p>Valida documentos obligatorios antes de la atención en ventanilla.</p>
         <form id="checkForm" class="form-grid">
-          <div><label>Trámite asociado</label><select name="tramiteId" required>${tramiteOptions()}</select></div>
-          <div><label>Categoría</label><select name="categoria"><option>Pasajero</option><option>Menor</option><option>Vehículo</option><option>SAG</option><option>Mascota</option></select></div>
-          <div class="span-2"><label>Documento requerido</label><input name="documento" required placeholder="Ej: Pasaporte vigente, autorización notarial, formulario de vehículo"></div>
-          <div><label>Estado documental</label><select name="estado"><option>Pendiente</option><option>Aprobado</option><option>Vencido</option><option>No presenta</option></select></div>
-          <div class="span-2"><label>Observación</label><textarea name="observacion" placeholder="Detalle de documento faltante, vencido o inconsistente."></textarea></div>
-          <div class="span-2 actions"><button class="btn primary" type="submit">Agregar validación</button></div>
+          <div>
+            <label>Trámite asociado</label>
+            <select name="tramiteId" required>${tramiteOptions()}</select>
+          </div>
+          <div>
+            <label>Categoría</label>
+            <select name="categoria">
+              <option>Pasajero</option>
+              <option>Menor</option>
+              <option>Vehículo</option>
+              <option>SAG</option>
+              <option>Mascota</option>
+            </select>
+          </div>
+          <div class="span-2">
+            <label>Documento requerido</label>
+            <input name="documento" required placeholder="Ej: Pasaporte vigente, autorización notarial, formulario de vehículo">
+          </div>
+          <div>
+            <label>Estado documental</label>
+            <select name="estado">
+              <option>Pendiente</option>
+              <option>Aprobado</option>
+              <option>Vencido</option>
+              <option>No presenta</option>
+            </select>
+          </div>
+          <div class="span-2">
+            <label>Observación</label>
+            <textarea name="observacion" placeholder="Detalle de documento faltante, vencido o inconsistente."></textarea>
+          </div>
+          <div class="span-2 actions">
+            <button class="btn primary" type="submit">Agregar documento</button>
+          </div>
         </form>
       </section>
+
       <section class="table-card">
         <h3>Documentos por trámite</h3>
-        ${table(headers, rows)}
+        ${table(["ID","Trámite","Categoría","Documento requerido","Estado","Observación","Acción"], rows)}
       </section>
     </div>
   `;
@@ -377,84 +597,25 @@ function checklist() {
       estado: estadoFinal,
       observacion: fd.get("observacion") || (estadoFinal === "Observado" ? "Documento pendiente, vencido o no presentado." : "Sin observación.")
     };
+
     if (!state.checklists) state.checklists = [];
     state.checklists.unshift(item);
+
     const tramite = state.tramites.find(t => t.id === item.tramiteId);
     if (tramite && estadoFinal === "Observado") {
       tramite.doc = "Observado";
       tramite.estado = "Observado";
-      tramite.obs = "Trámite observado por checklist documental.";
+      tramite.obs = "Trámite observado por documentación requerida.";
     }
-    addLog("Checklist documental", `Validación ${item.id} agregada al trámite ${item.tramiteId}.`);
+
+    addLog("Checklist documental", `Documento ${item.id} agregado al trámite ${item.tramiteId}.`);
     saveState();
-    toast("Checklist actualizado.");
+    toast("Documento agregado al checklist.");
     go("checklist");
   };
 
   bindChecklistActions();
 }
-
-function bindChecklistActions() {
-  $$("[data-check-ok]").forEach(btn => btn.onclick = () => {
-    const item = (state.checklists || []).find(c => c.id === btn.dataset.checkOk);
-    if (!item) return;
-    item.estado = "Aprobado";
-    item.observacion = "Documento validado.";
-    addLog("Checklist documental", `Documento ${item.id} aprobado.`);
-    saveState();
-    toast("Documento aprobado.");
-    go("checklist");
-  });
-  $$("[data-check-obs]").forEach(btn => btn.onclick = () => {
-    const item = (state.checklists || []).find(c => c.id === btn.dataset.checkObs);
-    if (!item) return;
-    item.estado = "Observado";
-    item.observacion = "Documento observado para regularización.";
-    const tramite = state.tramites.find(t => t.id === item.tramiteId);
-    if (tramite) {
-      tramite.doc = "Observado";
-      tramite.estado = "Observado";
-      tramite.obs = "Trámite observado por checklist documental.";
-    }
-    addLog("Checklist documental", `Documento ${item.id} observado.`);
-    saveState();
-    toast("Documento observado.");
-    go("checklist");
-  });
-}
-
-function validaciones() {
-  const rows = (state.validaciones || []).map(v => `
-    <tr>
-      <td><strong>${v.id}</strong></td>
-      <td>${esc(v.tipo)}</td>
-      <td>${esc(v.modulo)}</td>
-      <td>${esc(v.regla)}</td>
-      <td>${badge(v.estado)}</td>
-    </tr>
-  `);
-  const operaciónRows = (state.operación || []).map(c => `
-    <tr>
-      <td><strong>${c.id}</strong></td>
-      <td>${esc(c.nombre)}</td>
-      <td>${badge(c.estado)}</td>
-      <td>${esc(c.evidencia)}</td>
-    </tr>
-  `);
-  $("#viewContainer").innerHTML = `
-    <div class="grid grid-2">
-      <section class="table-card">
-        <h3>Registros operacionales</h3>
-        ${table(["ID","Tipo","Módulo","Regla aplicada","Estado"], rows)}
-      </section>
-      <section class="table-card">
-        <h3>Controles operacionales</h3>
-        ${table(["ID","Control","Estado","Evidencia operativa"], operaciónRows)}
-      </section>
-    </div>
-  `;
-}
-
 
 function pretramite() {
   $("#viewContainer").innerHTML = `
@@ -525,6 +686,7 @@ function menores() {
       <td>${esc(m.tramiteId)}</td>
       <td>${esc(m.nombre)}</td>
       <td>${esc(m.documento)}</td>
+      <td>${esc(m.tipoViaje || "No informado")}</td>
       <td>${esc(m.autorizacion)}</td>
       <td>${badge(m.estado)}</td>
       <td>${esc(m.observacion || "Sin observación")}</td>
@@ -532,53 +694,24 @@ function menores() {
     </tr>
   `);
 
-  const headers = ["ID","Trámite","Menor","Documento","Autorización","Estado","Observación"];
+  const headers = ["ID","Trámite","Menor","Documento","Tipo de viaje","Autorización","Estado","Observación"];
   if (currentUser.role !== "Pasajero") headers.push("Acción");
 
   $("#viewContainer").innerHTML = `
     <div class="grid grid-2">
       <section class="form-card">
         <h3>Registrar menor de edad</h3>
-        <p>Asocia un menor a un trámite y valida la autorización requerida para el control fronterizo.</p>
+        <p>Registra el escenario de viaje del menor y valida la autorización correspondiente.</p>
         <form id="menorForm" class="form-grid">
-          <div>
-            <label>Trámite asociado</label>
-            <select name="tramiteId" required>${tramiteOptions()}</select>
-          </div>
-          <div>
-            <label>Nombre del menor *</label>
-            <input name="nombre" required placeholder="Ej: Menor Demo">
-          </div>
-          <div>
-            <label>Documento del menor *</label>
-            <input name="documento" required placeholder="Ej: 33.333.333-3">
-          </div>
-          <div>
-            <label>Tipo de autorización</label>
-            <select name="autorizacion">
-              <option>Ambos padres presentes</option>
-              <option>Autorización notarial</option>
-              <option>Autorización judicial</option>
-              <option>Documento pendiente</option>
-              <option>Sin autorización</option>
-            </select>
-          </div>
-          <div>
-            <label>Estado solicitado</label>
-            <select name="estado">
-              <option>Pendiente</option>
-              <option>Aprobado</option>
-              <option>Observado</option>
-            </select>
-          </div>
-          <div class="span-2">
-            <label>Observación</label>
-            <textarea name="observacion" placeholder="Detalle de autorización, acompañantes o motivo de observación."></textarea>
-          </div>
-          <div class="span-2 actions">
-            <button class="btn primary" type="submit">Guardar menor</button>
-            <button class="btn secondary" type="reset">Limpiar</button>
-          </div>
+          <div><label>Trámite asociado</label><select name="tramiteId" required>${tramiteOptions()}</select></div>
+          <div><label>Nombre del menor *</label><input name="nombre" required placeholder="Ej: Menor Demo"></div>
+          <div><label>Documento del menor *</label><input name="documento" required placeholder="RUN, DNI o pasaporte"></div>
+          <div><label>Tipo de viaje</label><select name="tipoViaje"><option>Ambos padres presentes</option><option>Viaja con un padre</option><option>Viaja solo o con tercero</option></select></div>
+          <div><label>Autorización</label><select name="autorizacion"><option>Ambos padres presentes</option><option>Autorización notarial</option><option>Autorización judicial</option><option>Documento pendiente</option><option>Sin autorización</option></select></div>
+          <div><label>Acompañante / tutor</label><input name="acompanante" placeholder="Padre, madre, tutor o tercero responsable"></div>
+          <div class="span-2"><label>Respaldo autorización</label><input name="respaldo" placeholder="Código, folio, archivo o referencia del respaldo"></div>
+          <div class="span-2"><label>Observación</label><textarea name="observacion" placeholder="Detalle de filiación, tutoría, autorización o motivo de observación."></textarea></div>
+          <div class="span-2 actions"><button class="btn primary" type="submit">Validar menor</button><button class="btn secondary" type="reset">Limpiar</button></div>
         </form>
       </section>
 
@@ -592,15 +725,26 @@ function menores() {
   $("#menorForm").onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const estadoFinal = menorEstadoPorAutorizacion(fd.get("autorizacion"), fd.get("estado"));
+    const evaluacion = evaluarMenor(fd.get("tipoViaje"), fd.get("autorizacion"), fd.get("respaldo"), fd.get("documento"));
+
+    if (evaluacion.estado === "Bloqueado") {
+      showProcessAlert(e.target, evaluacion.observacion, true);
+      toast(evaluacion.observacion);
+      addLog("Menores de edad", `Flujo bloqueado en trámite ${fd.get("tramiteId")}: ${evaluacion.observacion}`);
+      return;
+    }
+
     const item = {
       id: nextId("MEN", state.menores),
       tramiteId: fd.get("tramiteId"),
       nombre: fd.get("nombre").trim(),
       documento: fd.get("documento").trim(),
+      tipoViaje: fd.get("tipoViaje"),
       autorizacion: fd.get("autorizacion"),
-      estado: estadoFinal,
-      observacion: fd.get("observacion") || (estadoFinal === "Observado" ? "Requiere revisión documental de autorización." : "Sin observación.")
+      acompanante: fd.get("acompanante"),
+      respaldo: fd.get("respaldo"),
+      estado: evaluacion.estado,
+      observacion: fd.get("observacion") || evaluacion.observacion
     };
 
     state.menores.unshift(item);
@@ -615,9 +759,9 @@ function menores() {
       }
     }
 
-    addLog("Menores de edad", `Registro ${item.id} asociado al trámite ${item.tramiteId} con estado ${item.estado}.`);
+    addLog("Menores de edad", `Menor ${item.id} validado en trámite ${item.tramiteId}: ${item.estado}.`);
     saveState();
-    toast("Menor de edad registrado.");
+    toast(item.estado === "Aprobado" ? "Documentación del menor aprobada." : "Menor registrado con observación.");
     go("menores");
   };
 
@@ -700,82 +844,166 @@ function documentacion() {
 }
 
 function vehiculos() {
-  const rows = state.vehiculos.map(v => `<tr><td><strong>${v.id}</strong></td><td>${v.tramiteId}</td><td>${esc(v.patente)}</td><td>${esc(v.titular)}</td><td>${esc(v.movimiento)}</td><td>${badge(v.estado)}</td></tr>`);
+  const rows = state.vehiculos.map(v => `
+    <tr>
+      <td><strong>${v.id}</strong></td>
+      <td>${esc(v.tramiteId)}</td>
+      <td>${esc(v.patente)}</td>
+      <td>${esc(v.chasis || "No informado")}</td>
+      <td>${esc(v.conductor || v.titular)}</td>
+      <td>${esc(v.tipoVehiculo || "Particular")}</td>
+      <td>${esc(v.estadoDocumento || "Vigente")}</td>
+      <td>${esc(v.permiso || "Pendiente")}</td>
+      <td>${badge(v.estado)}</td>
+      <td class="actions"><button type="button" class="btn secondary" data-pdf-veh="${v.id}">Descargar PDF</button></td>
+    </tr>
+  `);
   $("#viewContainer").innerHTML = `
     <div class="grid grid-2">
       <section class="form-card">
         <h3>Registrar vehículo</h3>
-        <form id="vehForm" class="form-grid">
+        <form id="vehForm" class="form-grid" novalidate>
           <div><label>Trámite</label><select name="tramiteId">${tramiteOptions()}</select></div>
-          <div><label>Patente *</label><input name="patente" required></div>
-          <div><label>Titular *</label><input name="titular" required></div>
-          <div><label>Movimiento</label><select name="movimiento"><option>Salida temporal</option><option>Admisión temporal</option><option>Ingreso</option></select></div>
-          <div><label>Estado</label><select name="estado"><option>Registrado</option><option>Pendiente</option><option>Observado</option></select></div>
+          <div><label>Patente *</label><input name="patente"></div>
+          <div><label>Chasis *</label><input name="chasis"></div>
+          <div><label>Conductor *</label><input name="conductor"></div>
+          <div><label>Titular *</label><input name="titular"></div>
+          <div><label>Tipo de vehículo</label><select name="tipoVehiculo"><option>Particular</option><option>Diplomático</option><option>Documento argentino</option></select></div>
+          <div><label>Movimiento</label><select name="movimiento"><option>Formulario de salida temporal</option><option>Permiso turismo</option><option>Admisión temporal</option><option>Ingreso</option></select></div>
+          <div><label>Documento argentino / código</label><input name="documentoArgentino" placeholder="Opcional o requerido para ingreso argentino"></div>
+          <div><label>Estado documento</label><select name="estadoDocumento"><option>Vigente</option><option>Inválido</option><option>Vencido</option></select></div>
           <div class="span-2 actions"><button class="btn primary" type="submit">Guardar vehículo</button></div>
         </form>
       </section>
       <section class="table-card">
         <h3>Vehículos registrados</h3>
-        ${table(["ID","Trámite","Patente","Titular","Movimiento","Estado"], rows)}
+        ${table(["ID","Trámite","Patente","Chasis","Conductor","Tipo","Documento","Permiso","Estado","PDF"], rows)}
       </section>
     </div>
   `;
+
   $("#vehForm").onsubmit = (e) => {
     e.preventDefault();
+    if (!validateRequiredFields(e.target, ["tramiteId", "patente", "chasis", "conductor", "titular"])) return;
+
     const fd = new FormData(e.target);
-    const item = { id: nextId("VEH", state.vehiculos), tramiteId: fd.get("tramiteId"), patente: fd.get("patente"), titular: fd.get("titular"), movimiento: fd.get("movimiento"), estado: fd.get("estado") };
+    const evaluacion = evaluarVehiculo(fd.get("tipoVehiculo"), fd.get("estadoDocumento"), fd.get("movimiento"));
+
+    const item = {
+      id: nextId("VEH", state.vehiculos),
+      tramiteId: fd.get("tramiteId"),
+      patente: fd.get("patente"),
+      chasis: fd.get("chasis"),
+      conductor: fd.get("conductor"),
+      titular: fd.get("titular"),
+      tipoVehiculo: fd.get("tipoVehiculo"),
+      movimiento: fd.get("movimiento"),
+      documentoArgentino: fd.get("documentoArgentino") || "No aplica",
+      estadoDocumento: fd.get("estadoDocumento"),
+      permiso: evaluacion.permiso,
+      estado: evaluacion.estado
+    };
+
     state.vehiculos.unshift(item);
     const t = state.tramites.find(x => x.id === item.tramiteId);
     if (t) {
       t.patente = item.patente;
-      if (item.estado === "Observado") t.estado = "Observado";
+      if (item.estado === "Observado" || item.estado === "Rechazado") {
+        t.estado = item.estado;
+        t.obs = evaluacion.observacion;
+      }
     }
-    addLog("Vehículos", `Vehículo ${item.patente} registrado para ${item.tramiteId}.`);
+    addLog("Vehículos", `Vehículo ${item.patente} procesado: ${item.permiso}.`);
     saveState();
-    toast("Vehículo registrado.");
+    toast(evaluacion.observacion);
     go("vehiculos");
   };
+
+  $$("[data-pdf-veh]").forEach(btn => btn.onclick = () => {
+    const veh = state.vehiculos.find(v => v.id === btn.dataset.pdfVeh);
+    if (!veh) return;
+    downloadSimplePdf(`permiso-${veh.id}.pdf`, "Permiso Vehicular SIGA", [
+      `ID: ${veh.id}`,
+      `Tramite: ${veh.tramiteId}`,
+      `Patente: ${veh.patente}`,
+      `Chasis: ${veh.chasis || "No informado"}`,
+      `Conductor: ${veh.conductor || "No informado"}`,
+      `Titular: ${veh.titular || "No informado"}`,
+      `Tipo: ${veh.tipoVehiculo || "No informado"}`,
+      `Movimiento: ${veh.movimiento || "No informado"}`,
+      `Permiso: ${veh.permiso || "Pendiente"}`,
+      `Estado: ${veh.estado || "Pendiente"}`,
+      `Fecha emision: ${new Date().toLocaleString("es-CL")}`
+    ]);
+    addLog("Vehículos", `PDF descargado para permiso de vehículo ${veh.id}.`);
+    saveState();
+  });
 }
 
 function sag() {
-  const rows = state.sagDecl.map(s => `<tr><td><strong>${s.id}</strong></td><td>${s.tramiteId}</td><td>${esc(s.alimentos)}</td><td>${esc(s.mascotas)}</td><td>${esc(s.detalle)}</td><td>${badge(s.estado)}</td></tr>`);
+  const rows = state.sagDecl.map(s => `<tr><td><strong>${s.id}</strong></td><td>${s.tramiteId}</td><td>${esc(s.alimentos)}</td><td>${esc(s.mascotas)}</td><td>${esc(s.detalle)}</td><td>${badge(s.estado)}</td><td>${esc(s.comprobante || "Sin comprobante")}</td></tr>`);
   $("#viewContainer").innerHTML = `
     <div class="grid grid-2">
       <section class="form-card">
-        <h3>Declaración jurada SAG</h3><p class="small">Para registrar mascotas use el módulo “Mascotas”. Esta vista queda para declaración general de alimentos/mascotas.</p>
-        <form id="sagForm" class="form-grid">
+        <h3>Declaración jurada SAG</h3>
+        <p class="small">Declaración general de productos regulados. Para detalle de productos o mascotas use los módulos específicos.</p>
+        <form id="sagForm" class="form-grid" novalidate>
           <div><label>Trámite</label><select name="tramiteId">${tramiteOptions()}</select></div>
-          <div><label>Declara alimentos</label><select name="alimentos"><option>No</option><option>Sí</option></select></div>
-          <div><label>Declara mascotas</label><select name="mascotas"><option>No</option><option>Sí</option></select></div>
-          <div><label>Estado SAG</label><select name="estado"><option>Pendiente</option><option>Aprobado</option><option>Observado</option></select></div>
-          <div class="span-2"><label>Detalle</label><textarea name="detalle"></textarea></div>
-          <div class="span-2 actions"><button class="btn primary" type="submit">Guardar declaración SAG</button></div>
+          <div><label>Declara productos regulados *</label><select name="alimentos"><option value="">Seleccione</option><option>No</option><option>Sí</option></select></div>
+          <div><label>Declara mascotas *</label><select name="mascotas"><option value="">Seleccione</option><option>No</option><option>Sí</option></select></div>
+          <div><label>Tipo de declaración *</label><select name="tipoDeclaracion"><option value="">Seleccione</option><option>Sin productos</option><option>Producto permitido</option><option>Producto prohibido</option></select></div>
+          <div class="span-2"><label>Detalle</label><textarea name="detalle" placeholder="Descripción del producto, alimento o motivo de observación"></textarea></div>
+          <div class="span-2 actions"><button class="btn primary" type="submit">Enviar declaración SAG</button></div>
         </form>
       </section>
       <section class="table-card">
         <h3>Declaraciones SAG</h3>
-        ${table(["ID","Trámite","Alimentos","Mascotas","Detalle","Estado"], rows)}
+        ${table(["ID","Trámite","Productos","Mascotas","Detalle","Estado","Comprobante"], rows)}
       </section>
     </div>
   `;
   $("#sagForm").onsubmit = (e) => {
     e.preventDefault();
+    if (!validateRequiredFields(e.target, ["tramiteId", "alimentos", "mascotas", "tipoDeclaracion"])) return;
+
     const fd = new FormData(e.target);
-    const item = { id: nextId("SAG", state.sagDecl), tramiteId: fd.get("tramiteId"), alimentos: fd.get("alimentos"), mascotas: fd.get("mascotas"), detalle: fd.get("detalle") || "Sin detalle.", estado: fd.get("estado") };
+    const tipo = fd.get("tipoDeclaracion");
+
+    let estado = "Aprobado";
+    let comprobante = "Declaración aceptada sin observaciones";
+    if (tipo === "Producto permitido") comprobante = "Declaración aceptada con inspección visual";
+    if (tipo === "Producto prohibido") {
+      estado = "Retenido para inspección";
+      comprobante = "Retenido para inspección SAG";
+      showProcessAlert(e.target, "Alerta SAG: producto retenido para inspección.", true);
+      playAlertSound();
+    }
+
+    const item = {
+      id: nextId("SAG", state.sagDecl),
+      tramiteId: fd.get("tramiteId"),
+      alimentos: fd.get("alimentos"),
+      mascotas: fd.get("mascotas"),
+      detalle: fd.get("detalle") || tipo,
+      estado,
+      comprobante
+    };
+
     state.sagDecl.unshift(item);
     const t = state.tramites.find(x => x.id === item.tramiteId);
     if (t) {
-      t.sag = item.estado;
-      if (item.estado === "Observado") t.estado = "Observado";
+      t.sag = estado === "Retenido para inspección" ? "Observado" : "Aprobado";
+      if (estado === "Retenido para inspección") {
+        t.estado = "Observado";
+        t.obs = "Trámite observado por retención SAG.";
+      }
     }
-    addLog("SAG", `Declaración ${item.id} registrada para ${item.tramiteId}.`);
+    addLog("SAG", `Declaración ${item.id} registrada para ${item.tramiteId}: ${item.estado}.`);
     saveState();
-    toast("Declaración SAG registrada.");
-    go("sag");
+    toast(estado === "Aprobado" ? "Declaración SAG aceptada." : "Producto retenido para inspección SAG.");
+    if (estado !== "Retenido para inspección") go("sag");
   };
 }
-
-
 
 function productosSag() {
   const rows = visibleProductosSag().map(p => `
@@ -889,6 +1117,9 @@ function mascotas() {
       <td>${esc(m.tramiteId)}</td>
       <td>${esc(m.nombre)}</td>
       <td>${esc(m.especie)}</td>
+      <td>${esc(m.raza || "No informado")}</td>
+      <td>${esc(m.responsable || "Mayor de edad")}</td>
+      <td>${esc(m.tutorLegal || "No aplica")}</td>
       <td>${esc(m.microchip)}</td>
       <td>${esc(m.certificado)}</td>
       <td>${esc(m.vacuna)}</td>
@@ -898,73 +1129,28 @@ function mascotas() {
     </tr>
   `);
 
-  const headers = ["ID","Trámite","Mascota","Especie","Microchip","Certificado","Vacuna","Estado SAG","Observación"];
+  const headers = ["ID","Trámite","Mascota","Especie","Raza","Responsable","Tutor legal","Microchip","Certificado","Vacuna","Estado SAG","Observación"];
   if (currentUser.role !== "Pasajero") headers.push("Acción");
 
   $("#viewContainer").innerHTML = `
     <div class="grid grid-2">
       <section class="form-card">
         <h3>Declarar mascota</h3>
-        <p>Registra mascotas asociadas al trámite para revisión SAG.</p>
+        <p>Registra mascotas asociadas al trámite y valida la responsabilidad legal del tutor.</p>
         <form id="mascotaForm" class="form-grid">
-          <div>
-            <label>Trámite asociado</label>
-            <select name="tramiteId" required>${tramiteOptions()}</select>
-          </div>
-          <div>
-            <label>Nombre de la mascota *</label>
-            <input name="nombre" required placeholder="Ej: Mascota Demo">
-          </div>
-          <div>
-            <label>Especie</label>
-            <select name="especie">
-              <option>Perro</option>
-              <option>Gato</option>
-              <option>Otro</option>
-            </select>
-          </div>
-          <div>
-            <label>Microchip</label>
-            <select name="microchip">
-              <option>Sí</option>
-              <option>No</option>
-              <option>No informado</option>
-            </select>
-          </div>
-          <div>
-            <label>Certificado sanitario</label>
-            <select name="certificado">
-              <option>Vigente</option>
-              <option>Pendiente</option>
-              <option>Vencido</option>
-              <option>No presenta</option>
-            </select>
-          </div>
-          <div>
-            <label>Vacuna antirrábica</label>
-            <select name="vacuna">
-              <option>Vigente</option>
-              <option>Pendiente</option>
-              <option>Vencida</option>
-              <option>No presenta</option>
-            </select>
-          </div>
-          <div>
-            <label>Estado solicitado SAG</label>
-            <select name="estado">
-              <option>Pendiente</option>
-              <option>Aprobado</option>
-              <option>Observado</option>
-            </select>
-          </div>
-          <div class="span-2">
-            <label>Observación</label>
-            <textarea name="observacion" placeholder="Detalle de revisión SAG, documentación o requisito pendiente."></textarea>
-          </div>
-          <div class="span-2 actions">
-            <button class="btn primary" type="submit">Guardar mascota</button>
-            <button class="btn secondary" type="reset">Limpiar</button>
-          </div>
+          <div><label>Trámite asociado</label><select name="tramiteId" required>${tramiteOptions()}</select></div>
+          <div><label>Nombre de la mascota *</label><input name="nombre" required placeholder="Ej: Mascota Demo"></div>
+          <div><label>Especie</label><select name="especie"><option>Perro</option><option>Gato</option><option>Otro</option></select></div>
+          <div><label>Raza</label><input name="raza" placeholder="Ej: Mestizo"></div>
+          <div><label>Responsable que declara</label><select name="responsable"><option>Mayor de edad</option><option>Menor de edad</option><option>Representante legal</option></select></div>
+          <div><label>Tutor legal</label><input name="tutorLegal" placeholder="Requerido si declara menor o representante"></div>
+          <div class="span-2"><label>Autorización / tutela</label><input name="autorizacionTutor" placeholder="Folio, documento o referencia de tutoría"></div>
+          <div><label>Microchip</label><select name="microchip"><option>Sí</option><option>No</option><option>No informado</option></select></div>
+          <div><label>Certificado sanitario</label><select name="certificado"><option>Vigente</option><option>Pendiente</option><option>Vencido</option><option>No presenta</option></select></div>
+          <div><label>Vacuna antirrábica</label><select name="vacuna"><option>Vigente</option><option>Pendiente</option><option>Vencida</option><option>No presenta</option></select></div>
+          <div><label>Estado solicitado SAG</label><select name="estado"><option>Pendiente</option><option>Aprobado</option><option>Observado</option></select></div>
+          <div class="span-2"><label>Observación</label><textarea name="observacion" placeholder="Detalle de revisión SAG, tutoría o requisito pendiente."></textarea></div>
+          <div class="span-2 actions"><button class="btn primary" type="submit">Registrar mascota</button><button class="btn secondary" type="reset">Limpiar</button></div>
         </form>
       </section>
 
@@ -978,17 +1164,28 @@ function mascotas() {
   $("#mascotaForm").onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const estadoFinal = mascotaEstadoSAG(fd.get("certificado"), fd.get("vacuna"), fd.get("estado"));
+    const evaluacion = evaluarMascota(fd.get("responsable"), fd.get("tutorLegal"), fd.get("autorizacionTutor"), fd.get("certificado"), fd.get("vacuna"), fd.get("estado"));
+
+    if (evaluacion.estado === "Bloqueado") {
+      toast(evaluacion.observacion);
+      addLog("Mascotas", `Registro bloqueado por falta de tutor legal en trámite ${fd.get("tramiteId")}.`);
+      return;
+    }
+
     const item = {
       id: nextId("MAS", state.mascotas || []),
       tramiteId: fd.get("tramiteId"),
       nombre: fd.get("nombre").trim(),
       especie: fd.get("especie"),
+      raza: fd.get("raza") || "No informado",
+      responsable: fd.get("responsable"),
+      tutorLegal: fd.get("tutorLegal") || "No aplica",
+      autorizacionTutor: fd.get("autorizacionTutor") || "No aplica",
       microchip: fd.get("microchip"),
       certificado: fd.get("certificado"),
       vacuna: fd.get("vacuna"),
-      estado: estadoFinal,
-      observacion: fd.get("observacion") || (estadoFinal === "Observado" ? "Requiere revisión SAG por documentación sanitaria pendiente o inválida." : "Sin observación.")
+      estado: evaluacion.estado,
+      observacion: fd.get("observacion") || evaluacion.observacion
     };
 
     if (!state.mascotas) state.mascotas = [];
@@ -1003,9 +1200,9 @@ function mascotas() {
       }
     }
 
-    addLog("Mascotas", `Mascota ${item.id} asociada al trámite ${item.tramiteId} con estado ${item.estado}.`);
+    addLog("Mascotas", `Mascota ${item.id} asociada al trámite ${item.tramiteId}: ${item.estado}.`);
     saveState();
-    toast("Mascota declarada correctamente.");
+    toast(item.estado === "Aprobado" ? "Mascota registrada correctamente." : "Mascota registrada con observación.");
     go("mascotas");
   };
 
@@ -1017,8 +1214,8 @@ function bindMascotaActions() {
     const mascota = (state.mascotas || []).find(m => m.id === btn.dataset.mascotaAprobar);
     if (!mascota) return;
     mascota.estado = "Aprobado";
-    mascota.certificado = mascota.certificado === "Vigente" ? mascota.certificado : "Vigente";
-    mascota.vacuna = mascota.vacuna === "Vigente" ? mascota.vacuna : "Vigente";
+    mascota.certificado = "Vigente";
+    mascota.vacuna = "Vigente";
     mascota.observacion = "Documentación sanitaria validada por SAG.";
     const tramite = state.tramites.find(t => t.id === mascota.tramiteId);
     if (tramite) {
@@ -1060,19 +1257,75 @@ function pdi() {
       <td class="actions"><button type="button" class="btn secondary" data-pdi-ok="${t.id}">Aprobar PDI</button><button type="button" class="btn outline" data-pdi-ob="${t.id}">Observar</button></td>
     </tr>
   `);
-  $("#viewContainer").innerHTML = `<section class="table-card"><h3>Control PDI</h3><p>Permite registrar el control migratorio del trámite.</p>${table(["Trámite","Pasajero","Documento","Estado PDI","Observaciones","Acción"], rows)}</section>`;
+  $("#viewContainer").innerHTML = `
+    <div class="grid grid-2">
+      <section class="form-card">
+        <h3>Validar identidad PDI</h3>
+        <p>Escanea o digita el RUN, DNI o pasaporte para validar identidad y vigencia del documento.</p>
+        <form id="pdiForm" class="form-grid" novalidate>
+          <div><label>Trámite</label><select name="tramiteId">${state.tramites.map(t => `<option value="${t.id}">${t.id} | ${esc(t.pasajero)}</option>`).join("")}</select></div>
+          <div><label>Documento escaneado *</label><input name="documento" placeholder="RUN, DNI o pasaporte"></div>
+          <div><label>Vigencia del documento</label><select name="vigencia"><option>Vigente</option><option>Vencido</option></select></div>
+          <div><label>Consulta migratoria</label><select name="alerta"><option>Sin alerta</option><option>Alerta migratoria</option></select></div>
+          <div class="span-2 actions"><button class="btn primary" type="submit">Validar PDI</button></div>
+        </form>
+      </section>
+      <section class="table-card">
+        <h3>Control PDI</h3>
+        ${table(["Trámite","Pasajero","Documento","Estado PDI","Observaciones","Acción"], rows)}
+      </section>
+    </div>
+  `;
+  $("#pdiForm").onsubmit = (e) => {
+    e.preventDefault();
+    if (!validateRequiredFields(e.target, ["tramiteId", "documento"])) return;
+
+    const fd = new FormData(e.target);
+    const t = state.tramites.find(x => x.id === fd.get("tramiteId"));
+    if (!t) return;
+    const ingresado = String(fd.get("documento")).trim().toLowerCase();
+    const real = String(t.documento).trim().toLowerCase();
+
+    if (fd.get("alerta") === "Alerta migratoria" || ingresado.includes("alerta") || ingresado.includes("arraigo")) {
+      t.pdi = "Bloqueado";
+      t.estado = "Bloqueado";
+      t.obs = "Alerta migratoria activa; bloqueo de salida y retención para supervisor PDI.";
+      showProcessAlert(e.target, "ALERTA MIGRATORIA ACTIVA: bloquear salida y avisar a supervisor.", true);
+      playAlertSound();
+      addLog("PDI", `Alerta migratoria activa para trámite ${t.id}.`);
+      saveState();
+      toast("Alerta migratoria activa. Salida bloqueada.");
+      return;
+    }
+
+    if (fd.get("vigencia") === "Vencido") {
+      t.pdi = "Rechazado";
+      t.estado = "Rechazado";
+      t.obs = "Documento vencido; tránsito rechazado hasta renovación.";
+      showProcessAlert(e.target, "Documento vencido. Tránsito rechazado.", true);
+      addLog("PDI", `Documento vencido rechazado para trámite ${t.id}.`);
+      saveState();
+      toast("Documento vencido. Tránsito rechazado.");
+      return;
+    }
+
+    if (ingresado === real) {
+      t.pdi = "Aprobado";
+      t.obs = "Identidad confirmada en control PDI.";
+      addLog("PDI", `Identidad validada para trámite ${t.id}.`);
+      toast("Identidad confirmada.");
+    } else {
+      t.pdi = "Observado";
+      t.estado = "Observado";
+      t.obs = "Documento no coincide con el trámite. Requiere revisión PDI.";
+      addLog("PDI", `Identidad observada para trámite ${t.id}.`);
+      toast("Documento no coincide; trámite observado.");
+    }
+    saveState();
+    go("pdi");
+  };
   $$('[data-pdi-ok]').forEach(btn => btn.onclick = () => updatePdi(btn.dataset.pdiOk, "Aprobado"));
   $$('[data-pdi-ob]').forEach(btn => btn.onclick = () => updatePdi(btn.dataset.pdiOb, "Observado"));
-}
-function updatePdi(id, status) {
-  const t = state.tramites.find(x => x.id === id);
-  if (!t) return;
-  t.pdi = status;
-  if (status === "Observado") t.estado = "Observado";
-  addLog("PDI", `Trámite ${id} actualizado a ${status}.`);
-  saveState();
-  toast("Estado PDI actualizado.");
-  go("pdi");
 }
 
 function integracion() {
@@ -1323,12 +1576,25 @@ $("#loginForm").onsubmit = (e) => {
   e.preventDefault();
   const email = $("#email").value.trim().toLowerCase();
   const password = $("#password").value;
-  const user = USERS.find(u => u.email === email && u.password === password);
+  const user = USERS.find(u => u.email === email);
   const record = state.usuarios.find(u => u.correo === email);
-  if (!user || (record && record.estado !== "Activo")) {
-    $("#loginMsg").textContent = "Credenciales inválidas o usuario inactivo.";
+
+  if (!user) {
+    $("#loginMsg").textContent = "Acceso denegado: usuario no registrado.";
+    addLog("Autenticación", `Intento fallido: usuario no registrado (${email}).`);
     return;
   }
+  if (record && record.estado !== "Activo") {
+    $("#loginMsg").textContent = "La cuenta está inactiva. Contacte a un administrador.";
+    addLog("Autenticación", `Intento bloqueado por usuario inactivo: ${email}.`);
+    return;
+  }
+  if (user.password !== password) {
+    $("#loginMsg").textContent = "Contraseña incorrecta.";
+    addLog("Autenticación", `Intento fallido por contraseña incorrecta: ${email}.`);
+    return;
+  }
+
   $("#loginMsg").textContent = "";
   currentUser = user;
   saveSession();

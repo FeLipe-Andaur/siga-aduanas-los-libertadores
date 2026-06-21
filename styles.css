@@ -387,3 +387,38 @@ tr:hover td { background: #fbfdff; }
   color: var(--muted);
   margin-top: 6px;
 }
+
+
+.input-error {
+  border-color: #b42318 !important;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, .12) !important;
+}
+.field-error {
+  color: #b42318;
+  font-size: .82rem;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.form-alert {
+  grid-column: 1 / -1;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.bad-alert {
+  background: #fff1f0;
+  border: 1px solid #f1a7a0;
+  color: #b42318;
+}
+.critical-alert {
+  background: #b42318;
+  border: 1px solid #7a1b12;
+  color: #fff;
+  animation: pulse-alert 1s infinite;
+}
+@keyframes pulse-alert {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
