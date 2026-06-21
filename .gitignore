@@ -1,5 +1,6 @@
-# SIGA
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 *.log
-node_modules/
+*.tmp
