@@ -6,7 +6,7 @@ Este repositorio corresponde a una entrega académica de la asignatura Ingenier�
 
 ---
 
-# SIGA Aduanas Chile - Prototipo funcional académico
+## SIGA Aduanas Chile - Prototipo funcional académico
 
 Prototipo web orientado a la modernización del proceso de Aduana en el Paso Los Libertadores.
 
@@ -108,7 +108,7 @@ El prototipo considera un enfoque de calidad basado en criterios asociados a mod
 
 ---
 
-## Ajustes principales aplicados
+## Mejoras principales aplicadas
 
 * Se eliminaron registros asociados a nombres personales del usuario.
 * Los datos de ejemplo usan nombres genéricos como “Pasajero Demo”.
@@ -120,7 +120,7 @@ El prototipo considera un enfoque de calidad basado en criterios asociados a mod
 
 ---
 
-## Ajuste de checklist según rol
+## Checklist según rol
 
 * Para el pasajero, el módulo se muestra como **Mis documentos requeridos**.
 * El pasajero solo puede ver sus documentos, estados y observaciones.
@@ -130,7 +130,7 @@ El prototipo considera un enfoque de calidad basado en criterios asociados a mod
 
 ---
 
-## Ajuste módulo menores
+## Módulo de menores de edad
 
 Se agregó un módulo operativo visible llamado **Menores de edad**.
 
@@ -147,7 +147,7 @@ El módulo permite:
 
 ---
 
-## Ajuste módulo mascotas
+## Módulo de mascotas
 
 Se agregó un módulo operativo visible llamado **Mascotas**, asociado a la revisión SAG.
 
@@ -164,7 +164,7 @@ El módulo permite:
 
 ---
 
-## Ajuste módulo SAG
+## Módulo SAG
 
 Se incorporaron validaciones para la declaración SAG.
 
@@ -180,7 +180,7 @@ El módulo permite:
 
 ---
 
-## Ajuste módulo vehículos
+## Módulo de vehículos
 
 Se agregó validación funcional para documentos vehiculares.
 
@@ -197,7 +197,7 @@ El módulo permite:
 
 ---
 
-## Ajuste módulo PDI
+## Módulo PDI
 
 Se agregó validación funcional para control migratorio.
 
@@ -237,6 +237,28 @@ siga-aduanas-los-libertadores/
 `-- .gitignore
 ```
 
+### Descripción de archivos y carpetas
+
+* `assets/`: contiene recursos gráficos utilizados por el prototipo, como el logo de Aduanas Chile.
+* `index.html`: contiene la estructura principal de la interfaz del prototipo.
+* `styles.css`: contiene los estilos visuales, diseño responsivo, colores, formularios, tarjetas, menús y alertas.
+* `script.js`: contiene la lógica funcional del prototipo, validaciones, roles, simulaciones operativas, flujos de trámites, módulos y bitácora.
+* `README.md`: contiene la documentación general del proyecto, contexto del caso, funcionalidades, enfoque de calidad, instrucciones de ejecución y control de versiones.
+* `.gitignore`: define archivos que no deben ser considerados por Git dentro del repositorio.
+
+---
+
+## Requisitos para ejecutar el prototipo
+
+Para ejecutar el prototipo se requiere:
+
+* Sistema operativo Windows, Linux o macOS.
+* Navegador web actualizado, como Google Chrome, Microsoft Edge, Firefox, Opera u otro equivalente.
+* Git instalado, solo si se desea clonar el repositorio.
+* Visual Studio Code u otro editor de código, solo si se desea revisar o modificar los archivos.
+
+El prototipo no requiere servidor local, base de datos, XAMPP, Node.js ni instalación de dependencias externas, ya que corresponde a una aplicación web estática desarrollada con HTML, CSS y JavaScript.
+
 ---
 
 ## Usuarios demo
@@ -252,15 +274,114 @@ siga-aduanas-los-libertadores/
 
 ---
 
-## Ejecutar localmente
+## Instrucciones de ejecución
 
-Para ejecutar el prototipo de forma local:
+### Opción 1: Ejecutar desde GitHub Pages
 
-1. Descargar o clonar el repositorio.
-2. Abrir la carpeta del proyecto.
-3. Ejecutar el archivo `index.html` en un navegador web moderno.
+El prototipo puede visualizarse directamente desde el navegador mediante GitHub Pages:
 
-El prototipo no requiere servidor, base de datos ni instalación de dependencias externas, ya que corresponde a una aplicación web estática.
+```text
+https://felipe-andaur.github.io/siga-aduanas-los-libertadores/
+```
+
+Pasos:
+
+1. Abrir el enlace en un navegador web actualizado.
+2. Iniciar sesión con alguno de los usuarios demo.
+3. Navegar por los módulos disponibles según el rol seleccionado.
+4. Probar los flujos funcionales del prototipo.
+
+---
+
+### Opción 2: Ejecutar localmente clonando el repositorio
+
+1. Abrir una terminal, PowerShell, Git Bash o la terminal integrada de Visual Studio Code.
+
+2. Clonar el repositorio:
+
+```bash
+git clone https://github.com/FeLipe-Andaur/siga-aduanas-los-libertadores.git
+```
+
+3. Ingresar a la carpeta del proyecto:
+
+```bash
+cd siga-aduanas-los-libertadores
+```
+
+4. Abrir el archivo principal:
+
+```text
+index.html
+```
+
+5. Ejecutar `index.html` con doble clic o abrirlo directamente desde el navegador.
+
+---
+
+### Opción 3: Ejecutar localmente desde Visual Studio Code
+
+1. Abrir Visual Studio Code.
+2. Seleccionar **File > Open Folder**.
+3. Abrir la carpeta `siga-aduanas-los-libertadores`.
+4. Abrir el archivo `index.html`.
+5. Ejecutarlo directamente en el navegador.
+
+Opcionalmente, se puede usar la extensión **Live Server** de Visual Studio Code:
+
+1. Instalar la extensión Live Server.
+2. Hacer clic derecho sobre `index.html`.
+3. Seleccionar **Open with Live Server**.
+4. El prototipo se abrirá en el navegador.
+
+---
+
+## Consideraciones de ejecución
+
+* El sistema utiliza datos simulados para representar usuarios, trámites, documentos, validaciones y estados operativos.
+* No existe conexión a una base de datos real.
+* No se utilizan credenciales reales ni datos personales del usuario.
+* Las integraciones con SAG, PDI y Aduana Argentina son simuladas para fines académicos.
+* La generación de reportes y documentos descargables se realiza desde el navegador.
+* Si el navegador conserva datos antiguos del prototipo, se recomienda limpiar el almacenamiento local del sitio o abrirlo en una ventana de incógnito.
+
+---
+
+## Limpieza de datos locales del navegador
+
+El prototipo puede utilizar almacenamiento local del navegador para simular datos y estados.
+
+Si se requiere reiniciar la información del prototipo:
+
+1. Abrir el prototipo en el navegador.
+2. Presionar `F12` para abrir las herramientas de desarrollador.
+3. Ir a la pestaña **Application** o **Aplicación**.
+4. Buscar **Local Storage**.
+5. Eliminar los datos asociados al sitio.
+6. Recargar la página.
+
+Como alternativa rápida, se puede abrir el prototipo en una ventana de incógnito.
+
+---
+
+## Flujo general de uso
+
+1. Ingresar al prototipo desde GitHub Pages o desde `index.html`.
+2. Iniciar sesión con un usuario demo.
+3. Revisar el panel principal según el rol autenticado.
+4. Consultar o crear un pre-trámite.
+5. Revisar documentación requerida.
+6. Validar módulos según corresponda:
+
+   * menores de edad;
+   * vehículos;
+   * declaración SAG;
+   * productos SAG;
+   * mascotas;
+   * control PDI;
+   * conciliación Argentina.
+7. Revisar reportes y bitácora.
+8. Cerrar sesión.
 
 ---
 
@@ -268,8 +389,8 @@ El prototipo no requiere servidor, base de datos ni instalación de dependencias
 
 El prototipo fue configurado para ser publicado mediante GitHub Pages desde:
 
-* Rama: `main`
-* Carpeta: `/root`
+* Rama: `main`.
+* Carpeta: `/root`.
 
 Una vez publicado, el sistema puede ser abierto directamente desde el navegador mediante el enlace de GitHub Pages del repositorio.
 
@@ -279,11 +400,11 @@ Una vez publicado, el sistema puede ser abierto directamente desde el navegador 
 
 Este proyecto utiliza Git como sistema de control de versiones. Se definieron tres versiones principales para evidenciar la evolución del prototipo:
 
-| Versión | Descripción                                                                                                                                  |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| v0.1.0  | Estructura inicial del prototipo SIGA. Incluye login, panel principal, consulta, pre-trámite y reportes básicos.                             |
-| v0.2.0  | Incorporación de módulos operativos principales: menores, mascotas, SAG, PDI, vehículos, checklist, integración, conciliación y flujo.       |
-| v1.0.0  | Versión estable del prototipo con validaciones finales, restricciones por rol, alertas, PDF, PDI avanzado y limpieza de información interna. |
+| Versión  | Descripción                                                                                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v0.1.0` | Estructura inicial del prototipo SIGA. Incluye login, panel principal, consulta, pre-trámite y reportes básicos.                                                   |
+| `v0.2.0` | Incorporación de módulos operativos principales: menores, mascotas, SAG, PDI, vehículos, checklist, integración, conciliación y flujo.                             |
+| `v1.0.0` | Versión estable del prototipo con validaciones finales, restricciones por rol, alertas, generación de PDF, control PDI avanzado y limpieza de información interna. |
 
 Comandos utilizados durante el versionamiento:
 
@@ -306,6 +427,8 @@ git remote add origin https://github.com/FeLipe-Andaur/siga-aduanas-los-libertad
 git push -u origin main
 git push origin --tags
 ```
+
+Los releases del repositorio incluyen la descripción de cambios principales y la estructura de carpetas correspondiente a cada versión.
 
 ---
 
